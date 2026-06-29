@@ -1,7 +1,6 @@
 package com.tzk.checker.services;
 
 import com.tzk.checker.rep.AiCommentReviewResponse;
-import org.springframework.stereotype.Service;
 
 public interface AiCommentReviewServices {
 
