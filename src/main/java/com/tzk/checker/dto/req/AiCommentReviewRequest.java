@@ -1,4 +1,4 @@
-package com.tzk.checker.req;
+package com.tzk.checker.dto.req;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;

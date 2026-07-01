@@ -1,14 +1,28 @@
 package com.tzk.checker.services.impl;
 
-import com.tzk.checker.rep.AiCommentReviewResponse;
+import com.tzk.checker.dto.rep.AiCommentReviewResponse;
+import com.tzk.checker.prompt.AiCommentReviewPromptTemplate;
 import com.tzk.checker.services.AiCommentReviewServices;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 
+@Slf4j
 @Service
 public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
+
+    @Resource
+    private AiCommentReviewPromptTemplate commentReviewPromptTemplate;
+
     @Override
     public AiCommentReviewResponse checkComment(String commentStr) {
+
+        //1.拼装prompt
+        String infoPrompt = commentReviewPromptTemplate.buildPrompt(commentStr);
+        log.info("拼装完成的prompt：{}", infoPrompt);
+
+
         AiCommentReviewResponse reviewResponse = new AiCommentReviewResponse();
         if (commentStr.contains("error")){
             reviewResponse.setType("暴力");

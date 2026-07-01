@@ -1,4 +1,4 @@
-package com.tzk.checker.rep;
+package com.tzk.checker.dto.rep;
 
 
 import io.swagger.annotations.ApiModelProperty;

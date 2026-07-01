@@ -1,7 +1,7 @@
 package com.tzk.checker.controller;
 
-import com.tzk.checker.rep.AiCommentReviewResponse;
-import com.tzk.checker.req.AiCommentReviewRequest;
+import com.tzk.checker.dto.rep.AiCommentReviewResponse;
+import com.tzk.checker.dto.req.AiCommentReviewRequest;
 import com.tzk.checker.services.AiCommentReviewServices;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;

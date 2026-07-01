@@ -1,6 +1,6 @@
 package com.tzk.checker.services;
 
-import com.tzk.checker.rep.AiCommentReviewResponse;
+import com.tzk.checker.dto.rep.AiCommentReviewResponse;
 
 public interface AiCommentReviewServices {
 
