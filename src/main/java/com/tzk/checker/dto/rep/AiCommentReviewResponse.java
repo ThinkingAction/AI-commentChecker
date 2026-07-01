@@ -22,7 +22,7 @@ public class AiCommentReviewResponse {
     @ApiModelProperty(value = "风险等级")
     private String riskLevel;
 
-    @ApiModelProperty(value = "评论类型简单描述")
+    @ApiModelProperty(value = "理由")
     private String reason;
 
     @ApiModelProperty(value = "处理建议")
