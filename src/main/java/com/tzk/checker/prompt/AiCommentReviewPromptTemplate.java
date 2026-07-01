@@ -38,14 +38,6 @@ public class AiCommentReviewPromptTemplate {
                 人工审核
                 先隐藏后复核
                 拦截
-                
-                理由：
-                当前评论审核结果的理由
-
-                用户评论：
-                <comment>
-                %s
-                </comment>
 
                 输出要求：
                 1. 只输出 JSON。
@@ -60,6 +52,26 @@ public class AiCommentReviewPromptTemplate {
                   "reason": "",
                   "suggestion": ""
                 }
+                
+                字段规则：
+                1. type 字段只能从以下值中选择：
+                   正常、广告引流、色情低俗、暴力血腥、敏感内容、其它违规
+                
+                2. riskLevel 字段只能从以下值中选择：
+                   低风险、中风险、高风险
+                
+                3. reason 字段要求：
+                   - 用一句简短中文说明判断原因
+                   - 不超过 30 个中文字符
+                   - 必须基于用户评论内容
+                   - 不要编造评论中不存在的信息
+                
+                4. suggestion 字段只能从以下值中选择：
+                   放行、人工审核、先隐藏后复核、拦截
+                
+                5. 不允许输出除 type、riskLevel、reason、suggestion 之外的字段。
+                
+                6. type、riskLevel、suggestion字段不允许输出规定之外的值。
                 
                 Few-shot:
                 评论：这个质量不错，下次还买
@@ -107,7 +119,10 @@ public class AiCommentReviewPromptTemplate {
                 "suggestion": "人工审核"
                 }
                 
-                
+                用户评论：
+                <comment>
+                %s
+                </comment>
                 
                 """.formatted(commentStr);
     }
