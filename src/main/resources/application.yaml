@@ -7,7 +7,7 @@ spring:
 
 qwen:
   api-key: ${QWEN_API_KEY:}
-  endpoint: ${QWEN_ENDPOINT:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}
+  endpoint: ${QWEN_ENDPOINT:https://ws-ml0gfwncaawbszf2.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions}
   model: ${QWEN_MODEL:qwen-plus}
   temperature: ${QWEN_TEMPERATURE:0.2}
   max-tokens: ${QWEN_MAX_TOKENS:1024}

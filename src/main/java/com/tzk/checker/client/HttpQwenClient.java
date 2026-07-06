@@ -71,6 +71,7 @@ public class HttpQwenClient implements QwenClient {
     }
 
     private String parseResponse(HttpResponse<String> response) {
+        log.info("模型返回结果：{}",objectMapper.writeValueAsString(response.body()));
         int statusCode = response.statusCode();
         String responseBody = response.body();
         if (statusCode < 200 || statusCode >= 300) {
