@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class AiCommentReviewPromptTemplate {
 
-    public String buildPrompt(String commentStr) {
+    public String buildSystemPrompt() {
         return """
                 你是一个评论审核助手。
 
@@ -119,11 +119,6 @@ public class AiCommentReviewPromptTemplate {
                 "suggestion": "人工审核"
                 }
                 
-                用户评论：
-                <comment>
-                %s
-                </comment>
-                
-                """.formatted(commentStr);
+                """;
     }
 }

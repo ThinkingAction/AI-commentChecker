@@ -1,46 +1,40 @@
 package com.tzk.checker.services.impl;
 
+import com.tzk.checker.client.QwenClient;
+import com.tzk.checker.client.QwenClientException;
 import com.tzk.checker.dto.rep.AiCommentReviewResponse;
 import com.tzk.checker.prompt.AiCommentReviewPromptTemplate;
 import com.tzk.checker.services.AiCommentReviewServices;
-import jakarta.annotation.Resource;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
-
-@Slf4j
 @Service
 public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
 
-    @Resource
-    private AiCommentReviewPromptTemplate commentReviewPromptTemplate;
+    private final AiCommentReviewPromptTemplate commentReviewPromptTemplate;
+    private final QwenClient qwenClient;
+    private final ObjectMapper objectMapper;
+
+    public AiCommentReviewServicesImpl(AiCommentReviewPromptTemplate commentReviewPromptTemplate,
+                                       QwenClient qwenClient,
+                                       ObjectMapper objectMapper) {
+        this.commentReviewPromptTemplate = commentReviewPromptTemplate;
+        this.qwenClient = qwenClient;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public AiCommentReviewResponse checkComment(String commentStr) {
+        // Service 只负责组织审核任务；鉴权、HTTP 请求和 Qwen 响应结构解析由 QwenClient 封装。
+        String modelContent = qwenClient.chat(
+                commentReviewPromptTemplate.buildSystemPrompt(), commentStr);
 
-        //1.拼装prompt
-        String infoPrompt = commentReviewPromptTemplate.buildPrompt(commentStr);
-        log.info("拼装完成的prompt：{}", infoPrompt);
-
-
-        AiCommentReviewResponse reviewResponse = new AiCommentReviewResponse();
-        if (commentStr.contains("error")){
-            reviewResponse.setType("暴力");
-            reviewResponse.setRiskLevel("高度风险");
-            reviewResponse.setReason("存在血腥描述");
-            reviewResponse.setSuggestion("屏蔽");
-        }else if (commentStr.contains("warning")){
-            reviewResponse.setType("广告引流");
-            reviewResponse.setRiskLevel("中度风险");
-            reviewResponse.setReason("存在引导站外交流");
-            reviewResponse.setSuggestion("人工复核");
-        }else {
-            reviewResponse.setType("正常");
-            reviewResponse.setRiskLevel("无风险");
-            reviewResponse.setReason("");
-            reviewResponse.setSuggestion("通过");
+        try {
+            // 提示词约束模型仅返回 JSON，此处将模型文本转换为项目现有的业务响应对象。
+            return objectMapper.readValue(modelContent, AiCommentReviewResponse.class);
+        } catch (Exception exception) {
+            // 不向上层返回空对象或不完整结果，统一按模型调用结果不可用处理。
+            throw new QwenClientException("Qwen 返回的审核结果 JSON 解析失败", exception);
         }
-
-        return reviewResponse;
     }
 }
