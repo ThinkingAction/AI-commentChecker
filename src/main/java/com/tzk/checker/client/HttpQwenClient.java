@@ -59,6 +59,7 @@ public class HttpQwenClient implements QwenClient {
 
             HttpResponse<String> response = httpClient.send(
                     request, HttpResponse.BodyHandlers.ofString());
+            log.info("用户评论:{},模型返回结果：{}",userMessage,response.body());
             return parseResponse(response);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -71,7 +72,6 @@ public class HttpQwenClient implements QwenClient {
     }
 
     private String parseResponse(HttpResponse<String> response) {
-        log.info("模型返回结果：{}",objectMapper.writeValueAsString(response.body()));
         int statusCode = response.statusCode();
         String responseBody = response.body();
         if (statusCode < 200 || statusCode >= 300) {
