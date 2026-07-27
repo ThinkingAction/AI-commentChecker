@@ -34,7 +34,7 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
                 commentReviewPromptTemplate.buildSystemPrompt(), commentStr);
 
         try {
-            checkModelRep(modelContent);
+            return checkModelRep(modelContent);
         } catch (ModelResponseValidationException e) {
             throw e;
         } catch (Exception exception) {
@@ -42,16 +42,15 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
             throw new QwenClientException("Qwen 返回的审核结果 JSON 解析失败", exception);
         }
 
-        // 提示词约束模型仅返回 JSON，此处将模型文本转换为项目现有的业务响应对象。
-        return objectMapper.readValue(modelContent, AiCommentReviewResponse.class);
-
     }
 
     /**
      * 模型返回结果的校验--业务结果的校验
+     *
      * @param modelContent
+     * @return
      */
-    private void checkModelRep(String modelContent) {
+    private AiCommentReviewResponse checkModelRep(String modelContent) {
         JsonNode root;
         try {
             root = objectMapper.readTree(modelContent);
@@ -73,6 +72,11 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
             }
         }
 
+        if (root.size() != RequiredField.values().length){
+            throw new ModelResponseValidationException(
+                    ValidationError.INVALID_RESPONSE_FIELDS.code, "模型返回结果业务字段冗余");
+        }
+
         validateAllowedValue(root, RequiredField.TYPE, CommentType.values());
         validateAllowedValue(root, RequiredField.RISK_LEVEL, RiskLevel.values());
         validateAllowedValue(root, RequiredField.SUGGESTION, Suggestion.values());
@@ -83,6 +87,8 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
                 || reasonNode.asText().codePointCount(0, reasonNode.asText().length()) > 30) {
             throw invalidFieldValue(RequiredField.REASON);
         }
+
+        return objectMapper.treeToValue(root, AiCommentReviewResponse.class);
     }
 
     private void validateAllowedValue(JsonNode root,
@@ -177,6 +183,7 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
     private enum ValidationError {
         INVALID_JSON("MODEL_RESPONSE_INVALID_JSON"),
         MISSING_REQUIRED_FIELD("MODEL_RESPONSE_MISSING_REQUIRED_FIELD"),
+        INVALID_RESPONSE_FIELDS("MODEL_RESPONSE_INVALID_RESPONSE_FIELDS"),
         INVALID_FIELD_VALUE("MODEL_RESPONSE_INVALID_FIELD_VALUE");
 
         private final String code;
