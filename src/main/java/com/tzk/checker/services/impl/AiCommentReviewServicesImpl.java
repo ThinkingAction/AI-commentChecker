@@ -5,8 +5,12 @@ import com.tzk.checker.client.QwenClientException;
 import com.tzk.checker.dto.rep.AiCommentReviewResponse;
 import com.tzk.checker.prompt.AiCommentReviewPromptTemplate;
 import com.tzk.checker.services.AiCommentReviewServices;
+import com.tzk.checker.services.ModelResponseValidationException;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+
+import java.util.Arrays;
 
 @Service
 public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
@@ -30,11 +34,155 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
                 commentReviewPromptTemplate.buildSystemPrompt(), commentStr);
 
         try {
-            // 提示词约束模型仅返回 JSON，此处将模型文本转换为项目现有的业务响应对象。
-            return objectMapper.readValue(modelContent, AiCommentReviewResponse.class);
+            checkModelRep(modelContent);
+        } catch (ModelResponseValidationException e) {
+            throw e;
         } catch (Exception exception) {
             // 不向上层返回空对象或不完整结果，统一按模型调用结果不可用处理。
             throw new QwenClientException("Qwen 返回的审核结果 JSON 解析失败", exception);
+        }
+
+        // 提示词约束模型仅返回 JSON，此处将模型文本转换为项目现有的业务响应对象。
+        return objectMapper.readValue(modelContent, AiCommentReviewResponse.class);
+
+    }
+
+    /**
+     * 模型返回结果的校验--业务结果的校验
+     * @param modelContent
+     */
+    private void checkModelRep(String modelContent) {
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(modelContent);
+        } catch (Exception exception) {
+            throw new ModelResponseValidationException(
+                    ValidationError.INVALID_JSON.code, "模型返回结果不是合法 JSON", exception);
+        }
+
+        if (root == null || !root.isObject()) {
+            throw new ModelResponseValidationException(
+                    ValidationError.INVALID_JSON.code, "模型返回结果必须是 JSON 对象");
+        }
+
+        for (RequiredField requiredField : RequiredField.values()) {
+            if (!root.has(requiredField.fieldName) || root.get(requiredField.fieldName).isNull()) {
+                throw new ModelResponseValidationException(
+                        ValidationError.MISSING_REQUIRED_FIELD.code,
+                        "模型返回结果缺少必要业务字段：" + requiredField.fieldName);
+            }
+        }
+
+        validateAllowedValue(root, RequiredField.TYPE, CommentType.values());
+        validateAllowedValue(root, RequiredField.RISK_LEVEL, RiskLevel.values());
+        validateAllowedValue(root, RequiredField.SUGGESTION, Suggestion.values());
+
+        JsonNode reasonNode = root.get(RequiredField.REASON.fieldName);
+        if (!reasonNode.isTextual()
+                || reasonNode.asText().isBlank()
+                || reasonNode.asText().codePointCount(0, reasonNode.asText().length()) > 30) {
+            throw invalidFieldValue(RequiredField.REASON);
+        }
+    }
+
+    private void validateAllowedValue(JsonNode root,
+                                      RequiredField field,
+                                      AllowedValue[] allowedValues) {
+        JsonNode fieldNode = root.get(field.fieldName);
+        if (!fieldNode.isTextual()
+                || Arrays.stream(allowedValues)
+                .noneMatch(allowedValue -> allowedValue.value().equals(fieldNode.asText()))) {
+            throw invalidFieldValue(field);
+        }
+    }
+
+    private ModelResponseValidationException invalidFieldValue(RequiredField field) {
+        return new ModelResponseValidationException(
+                ValidationError.INVALID_FIELD_VALUE.code,
+                "模型返回结果业务字段值不符合规则：" + field.fieldName);
+    }
+
+    private interface AllowedValue {
+        String value();
+    }
+
+    private enum RequiredField {
+        TYPE("type"),
+        RISK_LEVEL("riskLevel"),
+        REASON("reason"),
+        SUGGESTION("suggestion");
+
+        private final String fieldName;
+
+        RequiredField(String fieldName) {
+            this.fieldName = fieldName;
+        }
+    }
+
+    private enum CommentType implements AllowedValue {
+        NORMAL("正常"),
+        ADVERTISEMENT("广告引流"),
+        PORNOGRAPHY("色情低俗"),
+        VIOLENCE("暴力血腥"),
+        SENSITIVE("敏感内容"),
+        OTHER_VIOLATION("其它违规");
+
+        private final String value;
+
+        CommentType(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public String value() {
+            return value;
+        }
+    }
+
+    private enum RiskLevel implements AllowedValue {
+        LOW("低风险"),
+        MEDIUM("中风险"),
+        HIGH("高风险");
+
+        private final String value;
+
+        RiskLevel(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public String value() {
+            return value;
+        }
+    }
+
+    private enum Suggestion implements AllowedValue {
+        PASS("放行"),
+        MANUAL_REVIEW("人工审核"),
+        HIDE_AND_REVIEW("先隐藏后复核"),
+        BLOCK("拦截");
+
+        private final String value;
+
+        Suggestion(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public String value() {
+            return value;
+        }
+    }
+
+    private enum ValidationError {
+        INVALID_JSON("MODEL_RESPONSE_INVALID_JSON"),
+        MISSING_REQUIRED_FIELD("MODEL_RESPONSE_MISSING_REQUIRED_FIELD"),
+        INVALID_FIELD_VALUE("MODEL_RESPONSE_INVALID_FIELD_VALUE");
+
+        private final String code;
+
+        ValidationError(String code) {
+            this.code = code;
         }
     }
 }
