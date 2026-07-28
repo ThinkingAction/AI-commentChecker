@@ -34,7 +34,9 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
                 commentReviewPromptTemplate.buildSystemPrompt(), commentStr);
 
         try {
-            return checkModelRep(modelContent);
+            AiCommentReviewResponse response = checkModelRep(modelContent);
+            checkModelBusinessRules(response);
+            return response;
         } catch (ModelResponseValidationException e) {
             throw e;
         } catch (Exception exception) {
@@ -45,7 +47,7 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
     }
 
     /**
-     * 模型返回结果的校验--业务结果的校验
+     * 校验模型输出的 JSON 结构、必要字段及单个字段取值。
      *
      * @param modelContent
      * @return
@@ -89,6 +91,33 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
         }
 
         return objectMapper.treeToValue(root, AiCommentReviewResponse.class);
+    }
+
+    /**
+     * 校验模型输出字段之间的业务组合关系。
+     */
+    private void checkModelBusinessRules(AiCommentReviewResponse response) {
+        boolean isNormal = CommentType.NORMAL.value.equals(response.getType());
+        boolean isLowRisk = RiskLevel.LOW.value.equals(response.getRiskLevel());
+        boolean isHighRisk = RiskLevel.HIGH.value.equals(response.getRiskLevel());
+        boolean isPass = Suggestion.PASS.value.equals(response.getSuggestion());
+        boolean isBlock = Suggestion.BLOCK.value.equals(response.getSuggestion());
+
+        boolean normalRuleValid = !isNormal || (isLowRisk && isPass);
+        boolean passRuleValid = !isPass || (isNormal && isLowRisk);
+        boolean nonNormalRuleValid = isNormal || !isPass;
+        boolean highRiskRuleValid = !isHighRisk || !isPass;
+        boolean blockRuleValid = !isBlock || !isLowRisk;
+
+        if (!normalRuleValid
+                || !passRuleValid
+                || !nonNormalRuleValid
+                || !highRiskRuleValid
+                || !blockRuleValid) {
+            throw new ModelResponseValidationException(
+                    ValidationError.INVALID_BUSINESS_RULE.code,
+                    "模型返回结果字段组合不符合业务规则");
+        }
     }
 
     private void validateAllowedValue(JsonNode root,
@@ -184,7 +213,8 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
         INVALID_JSON("MODEL_RESPONSE_INVALID_JSON"),
         MISSING_REQUIRED_FIELD("MODEL_RESPONSE_MISSING_REQUIRED_FIELD"),
         INVALID_RESPONSE_FIELDS("MODEL_RESPONSE_INVALID_RESPONSE_FIELDS"),
-        INVALID_FIELD_VALUE("MODEL_RESPONSE_INVALID_FIELD_VALUE");
+        INVALID_FIELD_VALUE("MODEL_RESPONSE_INVALID_FIELD_VALUE"),
+        INVALID_BUSINESS_RULE("MODEL_RESPONSE_INVALID_BUSINESS_RULE");
 
         private final String code;
 

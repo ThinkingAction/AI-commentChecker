@@ -62,6 +62,39 @@ class AiCommentReviewServicesImplTests {
         assertEquals("MODEL_RESPONSE_INVALID_FIELD_VALUE", exception.getCode());
     }
 
+    @Test
+    void shouldRejectNormalTypeWithoutLowRiskAndPassSuggestion() {
+        assertBusinessRuleFailure("""
+                {"type":"正常","riskLevel":"中风险","reason":"结果组合错误","suggestion":"人工审核"}
+                """);
+    }
+
+    @Test
+    void shouldRejectPassSuggestionForNonNormalType() {
+        assertBusinessRuleFailure("""
+                {"type":"广告引流","riskLevel":"低风险","reason":"结果组合错误","suggestion":"放行"}
+                """);
+    }
+
+    @Test
+    void shouldRejectPassSuggestionForHighRisk() {
+        assertBusinessRuleFailure("""
+                {"type":"广告引流","riskLevel":"高风险","reason":"结果组合错误","suggestion":"放行"}
+                """);
+    }
+
+    @Test
+    void shouldRejectBlockSuggestionForLowRisk() {
+        assertBusinessRuleFailure("""
+                {"type":"广告引流","riskLevel":"低风险","reason":"结果组合错误","suggestion":"拦截"}
+                """);
+    }
+
+    private void assertBusinessRuleFailure(String modelContent) {
+        ModelResponseValidationException exception = assertValidationFailure(modelContent);
+        assertEquals("MODEL_RESPONSE_INVALID_BUSINESS_RULE", exception.getCode());
+    }
+
     private ModelResponseValidationException assertValidationFailure(String modelContent) {
         QwenClient qwenClient = (systemMessage, userMessage) -> modelContent;
         AiCommentReviewServicesImpl service = new AiCommentReviewServicesImpl(
