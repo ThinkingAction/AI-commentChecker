@@ -99,20 +99,15 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
     private void checkModelBusinessRules(AiCommentReviewResponse response) {
         boolean isNormal = CommentType.NORMAL.value.equals(response.getType());
         boolean isLowRisk = RiskLevel.LOW.value.equals(response.getRiskLevel());
-        boolean isHighRisk = RiskLevel.HIGH.value.equals(response.getRiskLevel());
         boolean isPass = Suggestion.PASS.value.equals(response.getSuggestion());
         boolean isBlock = Suggestion.BLOCK.value.equals(response.getSuggestion());
 
         boolean normalRuleValid = !isNormal || (isLowRisk && isPass);
         boolean passRuleValid = !isPass || (isNormal && isLowRisk);
-        boolean nonNormalRuleValid = isNormal || !isPass;
-        boolean highRiskRuleValid = !isHighRisk || !isPass;
         boolean blockRuleValid = !isBlock || !isLowRisk;
 
         if (!normalRuleValid
                 || !passRuleValid
-                || !nonNormalRuleValid
-                || !highRiskRuleValid
                 || !blockRuleValid) {
             throw new ModelResponseValidationException(
                     ValidationError.INVALID_BUSINESS_RULE.code,
