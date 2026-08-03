@@ -6,12 +6,14 @@ import com.tzk.checker.dto.rep.AiCommentReviewResponse;
 import com.tzk.checker.prompt.AiCommentReviewPromptTemplate;
 import com.tzk.checker.services.AiCommentReviewServices;
 import com.tzk.checker.services.ModelResponseValidationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.Arrays;
 
+@Slf4j
 @Service
 public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
 
@@ -38,11 +40,40 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
             checkModelBusinessRules(response);
             return response;
         } catch (ModelResponseValidationException e) {
-            throw e;
+            //对业务校验未通过的结果进入纠错prompt拼接流程
+            log.warn("用户评论:{},进入纠错流程，原因为：{}",commentStr,e.getMessage());
+            return fixPrompt(e, modelContent,commentStr);
         } catch (Exception exception) {
             // 不向上层返回空对象或不完整结果，统一按模型调用结果不可用处理。
             throw new QwenClientException("Qwen 返回的审核结果 JSON 解析失败", exception);
         }
+
+    }
+
+    /**
+     * 纠错流程
+     * @param e 业务异常定义
+     * @param modelContent 模型返回结果
+     * @param commentStr 用户评论
+     * @return 纠错后模型返回结果
+     */
+    private AiCommentReviewResponse fixPrompt(ModelResponseValidationException e, String modelContent, String commentStr) {
+        ValidationError validationError = ValidationError.fromCode(e.getCode());
+
+        String fixCommentStr = "用户原始输入为:"+commentStr+";上次模型输出为:"+modelContent+";对上次模型输出的校验结果为:"+validationError.fixPrompt;
+
+        String fixModelContent = null;
+        try {
+            fixModelContent = qwenClient.chat(
+                    commentReviewPromptTemplate.buildSystemPrompt(), fixCommentStr);
+            AiCommentReviewResponse response = checkModelRep(fixModelContent);
+            checkModelBusinessRules(response);
+            return response;
+        } catch (Exception exception){
+            log.error("纠错流程再次失败，当前评论丢弃,用户输入:{},模型输出：{},失败原因：{}",commentStr,fixModelContent,exception.getMessage());
+            return null;
+        }
+
 
     }
 
@@ -205,16 +236,28 @@ public class AiCommentReviewServicesImpl implements AiCommentReviewServices {
     }
 
     private enum ValidationError {
-        INVALID_JSON("MODEL_RESPONSE_INVALID_JSON"),
-        MISSING_REQUIRED_FIELD("MODEL_RESPONSE_MISSING_REQUIRED_FIELD"),
-        INVALID_RESPONSE_FIELDS("MODEL_RESPONSE_INVALID_RESPONSE_FIELDS"),
-        INVALID_FIELD_VALUE("MODEL_RESPONSE_INVALID_FIELD_VALUE"),
-        INVALID_BUSINESS_RULE("MODEL_RESPONSE_INVALID_BUSINESS_RULE");
+        INVALID_JSON("MODEL_RESPONSE_INVALID_JSON","JSON不合法，按照输出要求重新输出"),
+        MISSING_REQUIRED_FIELD("MODEL_RESPONSE_MISSING_REQUIRED_FIELD","缺少必要字段,理解字段规则后按照输出格式重新输出"),
+        INVALID_RESPONSE_FIELDS("MODEL_RESPONSE_INVALID_RESPONSE_FIELDS","存在多余字段,理解字段规则后按照输出格式重新输出"),
+        INVALID_FIELD_VALUE("MODEL_RESPONSE_INVALID_FIELD_VALUE","业务字段值不符合规则,理解字段规则后按照输出格式重新输出"),
+        INVALID_BUSINESS_RULE("MODEL_RESPONSE_INVALID_BUSINESS_RULE","业务字段值组合不符合业务规则,理解字段规则后校验字段值之间的关系，按照输出格式重新输出");
 
         private final String code;
 
-        ValidationError(String code) {
+        private final String fixPrompt;
+
+        ValidationError(String code, String fixPrompt) {
             this.code = code;
+            this.fixPrompt = fixPrompt;
+        }
+
+        public static ValidationError fromCode(String code) {
+            for (ValidationError e : values()) {
+                if (e.code.equals(code)) {
+                    return e;
+                }
+            }
+            throw new IllegalArgumentException("Unknown code: " + code);
         }
     }
 }
